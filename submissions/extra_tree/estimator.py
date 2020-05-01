@@ -1,25 +1,14 @@
+import numpy as np
 import pandas as pd
-from keras.layers import Dense, Dropout
-from keras.wrappers.scikit_learn import KerasRegressor
 from sklearn.preprocessing import FunctionTransformer
 from sklearn.compose import make_column_transformer
 from sklearn.preprocessing import OrdinalEncoder
 from sklearn.pipeline import make_pipeline
-from sklearn.ensemble import RandomForestRegressor
-from keras import *
+from sklearn.ensemble import RandomForestRegressor, ExtraTreesRegressor
 
-def create_model():
-    def root_mean_squared_error(y_true, y_pred):
-        return backend.sqrt(backend.mean(backend.square(y_pred - y_true), axis=-1))
-
-    clf = Sequential()
-    clf.add(Dense(1, activation='linear'))
-    clf.compile(optimizer="Adamax", loss=root_mean_squared_error ,metrics =["accuracy"])
-    return clf
-
-
-    # wrap the model using the function you created
-clf = KerasRegressor(build_fn=create_model, epochs=10000, verbose=0)
+from sklearn.model_selection import cross_val_score
+from sklearn.preprocessing import OneHotEncoder
+from sklearn.compose import make_column_transformer
 
 
 def _encode_dates(X):
@@ -43,15 +32,23 @@ def get_estimator():
     date_encoder = FunctionTransformer(_encode_dates)
     date_cols = ["DateOfDeparture"]
 
-    categorical_encoder = OrdinalEncoder()
-    categorical_cols = ["Arrival", "Departure"]
+    categorical_encoder = OneHotEncoder(handle_unknown="ignore")
+    categorical_cols = [
+        "Arrival", "Departure", "year", "month", "day", "weekday", "week", "n_days"
+    ]
 
     preprocessor = make_column_transformer(
-        (date_encoder, date_cols),
         (categorical_encoder, categorical_cols),
-        remainder='passthrough',  # passthrough numerical columns as they are
     )
+    n_estimators = 50
+    max_features = 'auto'
+    max_depth = None
+    min_samples_leaf = 1
+    random_state = 0
+    rf = ExtraTreesRegressor(n_estimators=n_estimators,
+                             max_features=max_features,
+                             max_depth=max_depth,
+                             min_samples_leaf=min_samples_leaf,
+                             random_state=random_state)
 
-    regressor = clf
-
-    return make_pipeline(preprocessor, regressor)
+    return make_pipeline(date_encoder, preprocessor,rf)

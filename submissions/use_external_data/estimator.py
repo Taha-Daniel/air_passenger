@@ -19,13 +19,23 @@ def _merge_external_data(X):
     # Parse date to also be of dtype datetime
     data_weather = pd.read_csv(filepath, parse_dates=["Date"])
 
-    X_weather = data_weather[['Date', 'AirPort', 'Max TemperatureC']]
+    X_weather = data_weather[['Date', 'AirPort', 'Max TemperatureC','Mean VisibilityKm']]
     X_weather = X_weather.rename(
         columns={'Date': 'DateOfDeparture', 'AirPort': 'Arrival'}
     )
 
     X_merged = pd.merge(
         X, X_weather, how='left', on=['DateOfDeparture', 'Arrival'], sort=False
+    )
+    holidaypath = os.path.join(
+        os.path.dirname(__file__), 'Holiday.csv'
+    )
+    data_holiday = pd.read_csv(holidaypath, parse_dates=["date"])
+    X_date = data_holiday.rename(
+        columns={'date': 'DateOfDeparture'}
+    )
+    X_merged = pd.merge(
+        X, X_date, how='left', on=['DateOfDeparture'], sort=False
     )
     return X_merged
 
@@ -54,7 +64,7 @@ def get_estimator():
         SimpleImputer(strategy="constant", fill_value="missing"),
         OrdinalEncoder()
     )
-    categorical_cols = ['Arrival', 'Departure']
+    categorical_cols = ['Arrival', 'Departure', 'holidays']
 
     preprocessor = make_column_transformer(
         (date_encoder, date_cols),

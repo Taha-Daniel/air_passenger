@@ -1,6 +1,9 @@
+import os
+
 import numpy as np
 import pandas as pd
-from sklearn.preprocessing import FunctionTransformer
+from sklearn.impute import SimpleImputer
+from sklearn.preprocessing import FunctionTransformer, OrdinalEncoder
 from sklearn.compose import make_column_transformer
 from sklearn.pipeline import make_pipeline
 from sklearn.ensemble import RandomForestRegressor
@@ -10,6 +13,21 @@ from sklearn.compose import make_column_transformer
 from sklearn.ensemble import VotingRegressor
 from sklearn.svm import SVR
 
+def _merge_external_data(X):
+    filepath = os.path.join(
+        os.path.dirname(__file__), 'external_data.csv'
+    )
+    # Make sure that DateOfDeparture is of dtype datetime
+    X = X.copy()  # modify a copy of X
+    X.loc[:, "DateOfDeparture"] = pd.to_datetime(X['DateOfDeparture'])
+    # Parse date to also be of dtype datetime
+    data_weather = pd.read_csv(filepath, parse_dates=["Date"])
+
+    X_weather = data_weather[['Date', 'AirPort', 'Max TemperatureC','Mean VisibilityKm']]
+    X_weather = X_weather.rename(
+        columns={'Date': 'DateOfDeparture', 'AirPort': 'Arrival'}
+    )
+    return X_merged
 
 def _encode_dates(X):
     # Make sure that DateOfDeparture is of dtype datetime
@@ -29,13 +47,18 @@ def _encode_dates(X):
 
 
 def get_estimator():
+    data_merger = FunctionTransformer(_merge_external_data)
     date_encoder = FunctionTransformer(_encode_dates)
     date_cols = ["DateOfDeparture"]
 
-    categorical_encoder = OneHotEncoder(handle_unknown="ignore")
+    categorical_encoder = make_pipeline(
+        SimpleImputer(strategy="constant", fill_value="missing"),
+        OneHotEncoder(handle_unknown="ignore")
+    )
     categorical_cols = [
         "Arrival", "Departure", "year", "month", "day", "weekday", "week", "n_days"
     ]
+
 
     preprocessor = make_column_transformer(
         (categorical_encoder, categorical_cols)
@@ -61,4 +84,4 @@ def get_estimator():
     regressor_voting = VotingRegressor(estimators=[('rf', rf),
                                                    ("svr", svr)])
 
-    return make_pipeline(date_encoder, preprocessor, regressor_voting)
+    return make_pipeline(data_merger, date_encoder, preprocessor, regressor_voting)
