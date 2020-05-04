@@ -5,6 +5,7 @@ Created on Sun Apr 26 15:27:47 2020
 
 @author: dorian
 """
+import os
 import numpy as np
 import pandas as pd
 from sklearn.preprocessing import FunctionTransformer
@@ -16,6 +17,26 @@ import problem
 from sklearn.model_selection import cross_val_score
 from sklearn.svm import SVR
 from sklearn.model_selection import RandomizedSearchCV
+from sklearn.impute import SimpleImputer
+
+def _merge_external_data(X):
+    filepath = os.path.join(
+        os.path.dirname(__file__), 'external_data.csv'
+    )
+    # Make sure that DateOfDeparture is of dtype datetime
+    X = X.copy()  # modify a copy of X
+    X.loc[:, "DateOfDeparture"] = pd.to_datetime(X['DateOfDeparture'])
+    # Parse date to also be of dtype datetime
+    data_weather = pd.read_csv(filepath, parse_dates=["DateOfDeparture"])
+
+    X_weather = data_weather[['DateOfDeparture', 'Arrival',
+                              'Max TemperatureC', 'Mean VisibilityKm', 'holidays']]
+
+    X_merged = pd.merge(
+        X, X_weather, how='left', on=['DateOfDeparture', 'Arrival'], sort=False
+    )
+    return X_merged
+
 
 def _encode_dates(X):
     # Make sure that DateOfDeparture is of dtype datetime
@@ -38,30 +59,30 @@ def _encode_dates(X):
 X, y = problem.get_train_data()
 
 #########################################################################################################################
-                                            #SVM with OneHotEncoder and StandardScaler
+                                            #SVM with OneHotEncoder
 #########################################################################################################################
 
 #############################################Preprocessing training data#####################################
 
+data_merger = FunctionTransformer(_merge_external_data)
 date_encoder = FunctionTransformer(_encode_dates)
+date_cols = ["DateOfDeparture"]
 
-categorical_encoder = OneHotEncoder(handle_unknown="ignore")
+categorical_encoder = make_pipeline(
+    SimpleImputer(strategy="constant", fill_value="missing"),
+    OneHotEncoder(handle_unknown="ignore")
+)
 categorical_cols = [
-    "Arrival", "Departure", "year", "month", "day","weekday", "week", "n_days"
-    ]
-
-numerical_scaler = StandardScaler()
-numerical_cols = ["WeeksToDeparture", "std_wtd"]
-
+    "Arrival", "Departure", "day", "weekday", "holidays", "week", "n_days"
+]
 
 preprocessor = make_column_transformer(
-    (categorical_encoder, categorical_cols),
-    (numerical_scaler, numerical_cols)
-   )
+    (categorical_encoder, categorical_cols)
+)
 
 #############################################Find best parameters#############################################
 
-
+"""
 parameters = {'svr__C': [0.1,1, 10, 100, 1000], 
               'svr__gamma': [1,0.1,0.01,0.001],
               'svr__kernel': ['rbf', 'poly', 'sigmoid']}
@@ -71,7 +92,7 @@ cv_svm = RandomizedSearchCV(pipeline_cv, parameters, cv=5, n_jobs=-1, n_iter = 1
 
 cv_svm.fit(X, y)
 best_parameters = cv_svm.best_params_
- 
+"""
 
 #############################################Create pipeline with best parameters##############################
 
@@ -83,7 +104,7 @@ regressor = SVR(
     C = C, gamma = gamma, kernel = kernel
 )
 
-pipeline = make_pipeline(date_encoder,preprocessor, regressor)
+pipeline = make_pipeline(data_merger, date_encoder,preprocessor, regressor)
 
 
 
@@ -95,3 +116,4 @@ rmse_scores = np.sqrt(-scores)
 print(
     f"RMSE: {np.mean(rmse_scores):.4f} +/- {np.std(rmse_scores):.4f}"
 )
+#RMSE: 0.4278 +/- 0.0283

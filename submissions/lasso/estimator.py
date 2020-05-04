@@ -1,3 +1,4 @@
+import os
 import pandas as pd
 from sklearn.preprocessing import FunctionTransformer
 from sklearn.compose import make_column_transformer
@@ -5,6 +6,26 @@ from sklearn.preprocessing import OneHotEncoder
 from sklearn.preprocessing import StandardScaler
 from sklearn.pipeline import make_pipeline
 from sklearn.linear_model import Lasso
+from sklearn.impute import SimpleImputer
+
+
+def _merge_external_data(X):
+    filepath = os.path.join(
+        os.path.dirname(__file__), 'external_data.csv'
+    )
+    # Make sure that DateOfDeparture is of dtype datetime
+    X = X.copy()  # modify a copy of X
+    X.loc[:, "DateOfDeparture"] = pd.to_datetime(X['DateOfDeparture'])
+    # Parse date to also be of dtype datetime
+    data_weather = pd.read_csv(filepath, parse_dates=["DateOfDeparture"])
+
+    X_weather = data_weather[['DateOfDeparture', 'Arrival',
+                              'Max TemperatureC', 'Mean VisibilityKm', 'holidays']]
+
+    X_merged = pd.merge(
+        X, X_weather, how='left', on=['DateOfDeparture', 'Arrival'], sort=False
+    )
+    return X_merged
 
 
 def _encode_dates(X):
@@ -25,22 +46,22 @@ def _encode_dates(X):
 
 
 def get_estimator():
+    data_merger = FunctionTransformer(_merge_external_data)
     date_encoder = FunctionTransformer(_encode_dates)
+    date_cols = ["DateOfDeparture"]
 
-    categorical_encoder = OneHotEncoder(handle_unknown="ignore")
+    categorical_encoder = make_pipeline(
+        SimpleImputer(strategy="constant", fill_value="missing"),
+        OneHotEncoder(handle_unknown="ignore")
+    )
     categorical_cols = [
-        "Arrival", "Departure", "year", "month", "day",
-        "weekday", "week", "n_days"
+        "Arrival", "Departure", "day", "weekday", "holidays", "week", "n_days"
     ]
 
-    numerical_scaler = StandardScaler()
-    numerical_cols = ["WeeksToDeparture", "std_wtd"]
-
     preprocessor = make_column_transformer(
-        (categorical_encoder, categorical_cols),
-        (numerical_scaler, numerical_cols)
+        (categorical_encoder, categorical_cols)
     )
 
     regressor = Lasso(alpha=0.0003)
 
-    return make_pipeline(date_encoder, preprocessor, regressor)
+    return make_pipeline(data_merger, date_encoder, preprocessor, regressor)

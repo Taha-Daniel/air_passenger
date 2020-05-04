@@ -1,16 +1,16 @@
+import os
+
 import numpy as np
 import pandas as pd
+from sklearn.impute import SimpleImputer
 from sklearn.preprocessing import FunctionTransformer
 from sklearn.compose import make_column_transformer
-from sklearn.preprocessing import OrdinalEncoder
 from sklearn.pipeline import make_pipeline
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.preprocessing import OneHotEncoder
 from sklearn.model_selection import cross_val_score
+from sklearn.preprocessing import OneHotEncoder
 from sklearn.compose import make_column_transformer
-from sklearn.ensemble import GradientBoostingRegressor
-import os
-from sklearn.impute import SimpleImputer
+from sklearn.ensemble import VotingRegressor, AdaBoostRegressor
+import xgboost as xgb
 
 
 def _merge_external_data(X):
@@ -66,18 +66,16 @@ def get_estimator():
         (categorical_encoder, categorical_cols)
     )
 
-    # Best parameters
-    subsample = 0.6
-    n_estimators = 1327
-    min_samples_split = 0.18
-    min_samples_leaf = 0.1
-    max_features = "log2"
-    max_depth = 200
-    learning_rate = 0.2
-    criterion = 'friedman_mse'
+    # Best parameters xgb
+    learning_rate = 0.1
+    max_depth = 12
+    gamma = 0
+    colsample_bytree = 0.8
+    min_child_weight = 5
+    subsample = 0.9
+    n_estimators = 400
 
-    regressor = GradientBoostingRegressor(learning_rate=learning_rate, subsample=subsample, n_estimators=n_estimators,
-                                          min_samples_leaf=min_samples_leaf, min_samples_split=min_samples_split,
-                                          max_features=max_features, max_depth=max_depth, criterion=criterion)
+    regressor = xgb.XGBRegressor(n_estimators=n_estimators, learning_rate=learning_rate, max_depth=max_depth,
+                                 gamma=gamma, colsample_bytree=colsample_bytree, min_child_weight=min_child_weight)
 
     return make_pipeline(data_merger, date_encoder, preprocessor, regressor)

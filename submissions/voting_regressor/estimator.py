@@ -12,6 +12,8 @@ from sklearn.preprocessing import OneHotEncoder
 from sklearn.compose import make_column_transformer
 from sklearn.ensemble import VotingRegressor
 from sklearn.svm import SVR
+import xgboost as xgb
+
 
 def _merge_external_data(X):
     filepath = os.path.join(
@@ -23,12 +25,14 @@ def _merge_external_data(X):
     # Parse date to also be of dtype datetime
     data_weather = pd.read_csv(filepath, parse_dates=["DateOfDeparture"])
 
-    X_weather = data_weather[['DateOfDeparture', 'Arrival', 'Max TemperatureC','Mean VisibilityKm','holidays']]
+    X_weather = data_weather[['DateOfDeparture', 'Arrival',
+                              'Max TemperatureC', 'Mean VisibilityKm', 'holidays']]
 
     X_merged = pd.merge(
         X, X_weather, how='left', on=['DateOfDeparture', 'Arrival'], sort=False
     )
     return X_merged
+
 
 def _encode_dates(X):
     # Make sure that DateOfDeparture is of dtype datetime
@@ -57,9 +61,8 @@ def get_estimator():
         OneHotEncoder(handle_unknown="ignore")
     )
     categorical_cols = [
-        "Arrival", "Departure", "year", "month", "day", "weekday", "week", "n_days","holidays"
+        "Arrival", "Departure", "day", "weekday", "holidays", "week", "n_days"
     ]
-
 
     preprocessor = make_column_transformer(
         (categorical_encoder, categorical_cols)
